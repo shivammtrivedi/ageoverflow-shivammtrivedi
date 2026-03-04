@@ -298,10 +298,6 @@ marimo/_lsp/
 __marimo__/
 
 
-# AWS credentials file
-credentials
-
-
 # Default Terrform .gitignore
 # Local .terraform directories
 **/.terraform/*
@@ -339,6 +335,12 @@ override.tf.json
 terraform.rc
 
 
+# AWS credentials file.
+credentials
+
 # Ignore Apple junk files.
 **/.DS_Store
 **/._.DS_Store
+
+# Ignore api.txt file from testing process.
+api.txt
