@@ -1,0 +1,44 @@
+### Health Check
+GET http://localhost:8080/api/v1/health
+
+###
+
+### Create Analysis Request
+POST http://localhost:8080/api/v1/analysis/7635bd23-ced9-4f6f-9fae-afe52625d699/requests
+Content-Type: application/json
+
+{
+  "user_id": "b6a6671c-f04c-47f8-a4d3-11374f0d75cb",
+  "urgent": false,
+  "photos": ["photo1base64", "photo2base64"]
+}
+
+###
+
+### Create Urgent Analysis Request
+POST http://localhost:8080/api/v1/analysis/7635bd23-ced9-4f6f-9fae-afe52625d699/requests
+Content-Type: application/json
+
+{
+  "user_id": "b6a6671c-f04c-47f8-a4d3-11374f0d75cb",
+  "urgent": true,
+  "photos": ["photo1base64"]
+}
+
+###
+
+### Create Request - Invalid customer_id (expect 400)
+POST http://localhost:8080/api/v1/analysis/not-a-uuid/requests
+Content-Type: application/json
+
+{
+  "user_id": "b6a6671c-f04c-47f8-a4d3-11374f0d75cb",
+  "urgent": false,
+  "photos": []
+}
+
+###
+
+### Create Request - Missing body (expect 400)
+POST http://localhost:8080/api/v1/analysis/7635bd23-ced9-4f6f-9fae-afe52625d699/requests
+Content-Type: application/json
