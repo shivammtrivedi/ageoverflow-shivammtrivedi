@@ -1,0 +1,1 @@
+Used Claude Code to generate/clean up local.sh file to try and pass github build tests
