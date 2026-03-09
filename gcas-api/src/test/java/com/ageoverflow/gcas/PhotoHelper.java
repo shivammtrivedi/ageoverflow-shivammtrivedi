@@ -8,6 +8,7 @@ import java.util.Base64;
  * Encoding: base64( json_string( "complexity|age|silent|boomer|x|y|z|alpha|filler" ) )
  * Checksum:  "0x" + hex( sum of ages across all photos )
  */
+// skip these for now
 class PhotoHelper {
 
     static String createPhoto(int complexity, int age, int silent, int boomer, int x, int y, int z, int alpha) {
