@@ -20,3 +20,96 @@ Error: Process completed with exit code 1.
 11 +                                                                                                                                                                                                                                   
 12  cd gcas-api
 13  ./mvnw clean verify
+
+so the build tests pass now, but when running the tests, they run on python which will obviously fail: echo "running tests...."                                                                                                               
+cd marking && poetry run pytest functionality                                                                                                                                                                                               
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}                                                                                                                                                                                  
+env:                                                                                                                                                                                                                                        
+pythonLocation: /opt/actions-runner/_work/_tool/Python/3.13.12/x64                                                                                                                                                                        
+PKG_CONFIG_PATH: /opt/actions-runner/_work/_tool/Python/3.13.12/x64/lib/pkgconfig                                                                                                                                                         
+Python_ROOT_DIR: /opt/actions-runner/_work/_tool/Python/3.13.12/x64                                                                                                                                                                       
+Python2_ROOT_DIR: /opt/actions-runner/_work/_tool/Python/3.13.12/x64                                                                                                                                                                      
+Python3_ROOT_DIR: /opt/actions-runner/_work/_tool/Python/3.13.12/x64                                                                                                                                                                      
+LD_LIBRARY_PATH: /opt/actions-runner/_work/_tool/Python/3.13.12/x64/lib                                                                                                                                                                   
+VENV: .venv/bin/activate                                                                                                                                                                                                                  
+pytest_github_report: true                                                                                                                                                                                                                
+pytest_report_title: :stethoscope: Functionality Tests                                                                                                                                                                                    
+pytest_verbosity: 2. Here are the files in the ageoverflow-tests. Would you say you can convert these tests into java tests and write them into my java test folder that's already made.
+
+● Let me look at the test files first.
+
+● Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● Yes, I can convert these. They're black-box HTTP integration tests — in Java I'll use @SpringBootTest with TestRestTemplate for the same style. I'll write all of them, though the ones covering GET /requests and GET /users will fail until
+those endpoints are built — which is fine, they'll serve as the test spec.
+
+● Write(gcas-api\src\test\java\com\ageoverflow\gcas\PhotoHelper.java)
+⎿  Wrote 38 lines to ..\..\..\c\Users\shiva\ageoverflow-shivammtrivedi\gcas-api\src\test\java\com\ageoverflow\gcas\PhotoHelper.java
+1 package com.ageoverflow.gcas;
+2
+3 import java.nio.charset.StandardCharsets;
+4 import java.util.Base64;
+5
+6 /**
+7  * Replicates the Python Photo/Photos helper from the original test suite.
+8  * Encoding: base64( json_string( "complexity|age|silent|boomer|x|y|z|alpha|filler" ) )
+9  * Checksum:  "0x" + hex( sum of ages across all photos )
+10  */
+… +28 lines (ctrl+o to expand)
+
+● Write(gcas-api\src\test\java\com\ageoverflow\gcas\HealthControllerTest.java)
+⎿  Wrote 21 lines to ..\..\..\c\Users\shiva\ageoverflow-shivammtrivedi\gcas-api\src\test\java\com\ageoverflow\gcas\HealthControllerTest.java
+1 package com.ageoverflow.gcas;
+2
+3 import org.junit.jupiter.api.Test;
+4 import org.springframework.beans.factory.annotation.Autowired;
+5 import org.springframework.boot.test.context.SpringBootTest;
+6 import org.springframework.boot.test.web.client.TestRestTemplate;
+7
+8 import static org.junit.jupiter.api.Assertions.assertEquals;
+9
+10 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+… +11 lines (ctrl+o to expand)
+
+● Write(gcas-api\src\test\java\com\ageoverflow\gcas\RequestsControllerTest.java)
+⎿  Wrote 156 lines to ..\..\..\c\Users\shiva\ageoverflow-shivammtrivedi\gcas-api\src\test\java\com\ageoverflow\gcas\RequestsControllerTest.java
+1 package com.ageoverflow.gcas;
+2
+3 import org.junit.jupiter.api.Test;
+4 import org.springframework.beans.factory.annotation.Autowired;
+5 import org.springframework.boot.test.context.SpringBootTest;
+6 import org.springframework.boot.test.web.client.TestRestTemplate;
+7 import org.springframework.http.HttpEntity;
+8 import org.springframework.http.HttpHeaders;
+9 import org.springframework.http.MediaType;
+10 import org.springframework.http.ResponseEntity;
+… +146 lines (ctrl+o to expand)
+
+● Write(gcas-api\src\test\java\com\ageoverflow\gcas\UsersControllerTest.java)
+⎿  Wrote 108 lines to ..\..\..\c\Users\shiva\ageoverflow-shivammtrivedi\gcas-api\src\test\java\com\ageoverflow\gcas\UsersControllerTest.java
+1 package com.ageoverflow.gcas;
+2
+3 import org.junit.jupiter.api.Test;
+4 import org.springframework.beans.factory.annotation.Autowired;
+5 import org.springframework.boot.test.context.SpringBootTest;
+6 import org.springframework.boot.test.web.client.TestRestTemplate;
+7 import org.springframework.http.HttpEntity;
+8 import org.springframework.http.HttpHeaders;
+9 import org.springframework.http.MediaType;
+… +98 lines (ctrl+o to expand)
+
+● Done. Here's a summary of what was written and what to expect:
+
+Files created:
+- PhotoHelper.java — replicates Python's Photo.as_payload() and checksum() logic
+- HealthControllerTest.java — 1 test
+- RequestsControllerTest.java — 10 tests
+- UsersControllerTest.java — 5 tests
+
+Tests that will pass now (endpoints already exist):
+- healthReturns200 ✅                                                                                                                                                                                                                              
+  ─
+  Tests that will fail until endpoints are built:
+- All GET /requests tests → needs GET /analysis/{customer_id}/requests with query param validation
+- createRequestWithEmptyPhotosReturns400 → needs POST to reject empty photos
+- All GET /users tests → needs GET /analysis/{customer_id}/users
