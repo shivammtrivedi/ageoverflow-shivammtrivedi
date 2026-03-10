@@ -9,6 +9,7 @@ import com.ageoverflow.gcas.repository.CustomerRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -40,6 +41,14 @@ public class AnalysisRequestService {
         AnalysisRequest saved = analysisRequestRepository.save(request);
 
         return toDTO(saved);
+    }
+
+    public List<AnalysisRequestDTO> getRequests(UUID customerId, int limit, int offset) {
+        return analysisRequestRepository
+                .findByCustomerId(customerId)
+                .stream()
+                .map(AnalysisRequestService::toDTO)
+                .toList();
     }
 
     // Maps a saved AnalysisRequest entity to the API response shape.
