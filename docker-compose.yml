@@ -1,0 +1,31 @@
+services:
+
+  database:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: verySecretPassword
+      POSTGRES_USER: administrator
+      POSTGRES_DB: gcasdb
+    volumes:
+      # Persist Postgres data to a local ./data folder so it survives container restarts
+      - ./data:/var/lib/postgresql/data
+
+  app:
+    # Build the image from gcas-api/Dockerfile instead of pulling a pre-built one
+    build: ./gcas-api
+    restart: always
+    environment:
+      # Override the datasource properties from application.properties at runtime
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/gcasdb
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      SPRING_DATASOURCE_USERNAME: administrator
+      SPRING_DATASOURCE_PASSWORD: verySecretPassword
+      # Use 'update' so Hibernate adjusts the schema without wiping data on restart
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    ports:
+      - "8080:8080"
+    depends_on:
+      # Ensures the database container starts before app, but does NOT wait for
+      # Postgres to be ready, that's why we have the sleep 10 in the Dockerfile
+      - database
