@@ -113,3 +113,58 @@ Tests that will pass now (endpoints already exist):
 - All GET /requests tests → needs GET /analysis/{customer_id}/requests with query param validation
 - createRequestWithEmptyPhotosReturns400 → needs POST to reject empty photos
 - All GET /users tests → needs GET /analysis/{customer_id}/users
+
+Updating Local.sh file:
+⏺ The key line in the error is:
+
+ConnectionRefusedError: [Errno 111] Connection refused
+host='172.17.0.1', port=8080
+
+The CI is trying to reach your app at port 8080 but nothing is running. The current local.sh just runs ./mvnw clean verify (unit tests) and exits — it never starts the
+server.
+
+The CI workflow runs local.sh to build and start your app, then runs the Python tests against it. You need to update local.sh to start the app with Docker in the background
+and wait for it to be ready.
+
+⏺ Read 1 file (ctrl+o to expand)
+
+⏺ Write(local.sh)
+⎿  Added 14 lines, removed 8 lines
+1  #!/bin/bash
+2  set -e
+3  
+4 -# Install Java 21 if not available                                                                                                                             
+5 -if ! command -v java &> /dev/null; then                                                                                                                        
+6 -    sudo apt-get update -qq                                                                                                                                    
+7 -    sudo apt-get install -y openjdk-21-jdk                                                                                                                     
+8 -fi                                                                                                                                                             
+4 +# Start the app and database in detached mode, rebuilding the image                                                                                            
+5 +docker compose up --build -d                                                                                                                                   
+6  
+10 -export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))                                                                                            
+7 +# Wait for the app to be healthy before the test runner hits it.                                                                                               
+8 +# Polls the health endpoint every 2 seconds, giving up after 60 seconds.                                                                                       
+9 +echo "Waiting for app to be ready..."                                                                                                                          
+10 +for i in $(seq 1 30); do                                                                                                                                       
+11 +    if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/v1/health | grep -q "200"; then                                                        
+12 +        echo "App is ready."                                                                                                                                   
+13 +        exit 0                                                                                                                                                 
+14 +    fi                                                                                                                                                         
+15 +    sleep 2                                                                                                                                                    
+16 +done                                                                                                                                                           
+17  
+12 -cd gcas-api                                                                                                                                                    
+13 -./mvnw clean verify                                                                                                                                            
+18   No newline at end of file
+19 +echo "App failed to start in time."                                                                                                                            
+20 +exit 1
+
+⏺ Bash(chmod +x /Users/shivamtrivedi/ageoverflow-shivammtrivedi/local.sh)
+⎿  Done
+
+⏺ Here's what changed and why:
+
+- Removed the Java/Maven build — the Dockerfile handles that now
+- docker compose up --build -d — starts both containers in the background (-d = detached)
+- Health poll loop — waits up to 60 seconds for the app to respond on /api/v1/health before exiting. This ensures the CI test runner doesn't hit the app before it's ready
+- Exits 0 when healthy, exits 1 if it never starts — CI will correctly pass or fail based on this       
