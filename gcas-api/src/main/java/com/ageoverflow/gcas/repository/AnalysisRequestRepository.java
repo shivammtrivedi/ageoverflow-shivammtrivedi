@@ -10,4 +10,5 @@ import java.util.UUID;
 public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest, UUID>,
         JpaSpecificationExecutor<AnalysisRequest> {
         List<AnalysisRequest> findByCustomerId(UUID customerId);
+        List<AnalysisRequest> findByCustomerIdAndUserId(UUID customerId, UUID userId);
 }

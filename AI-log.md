@@ -595,3 +595,74 @@ second-oldest request specifically, so ordering must be consistent.
 ---                                                                                                                                                               
 All of this is contained within AnalysisController.getRequests() and AnalysisRequestService.getRequests(). No new files needed — just expanding the existing
 method signatures and adding a JPA query with filters. 
+
+we need to get users, get user's results now, Here is the API spec[Pasted text #1 +576 lines]. How can I implement these two endpoints
+
+⏺ Let me check the existing user DTOs first:
+
+⏺ Read 2 files (ctrl+o to expand)
+
+⏺ Good. The DTOs already exist. One issue: UserResultDTO has @JsonInclude(NON_NULL) which would omit checksum, primary_generation, and age when null. The test's
+check_user asserts these keys are always present — so I need to remove that annotation.
+
+Here's the plan:
+
+UserResultDTO — remove @JsonInclude(NON_NULL) so null fields serialize as null rather than being omitted.
+
+AnalysisRequestRepository — add findByCustomerIdAndUserId so we can fetch a single user's requests without a Specification.
+
+AnalysisRequestService — add two new methods:
+- getUsers(customerId, limit, offset) — fetch all requests for customer, group by userId in Java, apply limit/offset to the user list
+- getUserByCustomerAndUser(customerId, userId) — fetch requests for that specific user, return Optional.empty() if none found
+
+AnalysisController — add two new endpoints with UUID validation and limit/offset validation (same rules as requests: 1–1000, ≥0).
+
+❯ What is the roadmap for implementing the stats endpoint and functionality.
+
+⏺ Here's the roadmap:
+
+1. New DTOs
+
+- StatisticsContentsDTO — total_users, total_requests, mean, median, buckets (Map<Integer, Long> with keys 20–80)
+- StatisticsDTO — generated_at (RFC3339), contents
+
+2. Service method — getStatistics(UUID customerId)
+
+- Return Optional.empty() if customer doesn't exist → controller maps to 404
+- total_requests = all requests for customer (any status)
+- total_users = distinct userId values across all requests
+- Mean & median — computed exactly from ages of SUCCESS requests only (only those have valid ages):
+  - mean = average of all ages
+  - median = sorted middle (average of two middles for even count)
+  - If no successes yet, both are 0
+- Buckets — always emit all 7 keys (20–80). For each success request: bucket = min(floor(age/10)*10, 80), capped minimum at 20
+- generated_at = OffsetDateTime.now()
+
+3. Controller — GET /{customer_id}/statistics
+
+- 400 if customer_id is not a valid UUID
+- 404 if Optional.empty() returned from service
+- 200 with StatisticsDTO body
+
+4. Ordering fix in getUsers
+
+- Current code iterates HashMap.entrySet() — no stable order
+- Fix: sort stream by userId (UUID is Comparable) so pagination tests pass deterministically
+
+Test coverage expected after this
+
+┌────────────────────────────────────┬────────────────────────────┐
+│                Test                │      Expected result       │
+├────────────────────────────────────┼────────────────────────────┤
+│ test_list_invalid_customer (stats) │ 400 ✅                     │
+├────────────────────────────────────┼────────────────────────────┤
+│ test_list_unknown_customer (stats) │ 404 ✅                     │
+├────────────────────────────────────┼────────────────────────────┤
+│ test_single_entry                  │ mean=29, median=29 ✅      │
+├────────────────────────────────────┼────────────────────────────┤
+│ test_two_entries                   │ mean=25, median=25 ✅      │
+├────────────────────────────────────┼────────────────────────────┤
+│ test_multiple_entries              │ mean=30, median=28 ✅      │
+├────────────────────────────────────┼────────────────────────────┤
+│ test_generated_at                  │ valid RFC3339 timestamp ✅ │
+└────────────────────────────────────┴────────────────────────────┘
