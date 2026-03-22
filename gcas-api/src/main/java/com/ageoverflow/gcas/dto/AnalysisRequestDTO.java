@@ -10,6 +10,11 @@ import lombok.NoArgsConstructor;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+/**
+ * API response shape for a single analysis request.
+ * Returned by POST /requests (on creation) and GET /requests/{id}.
+ * The {@code result} field is omitted from JSON when null (i.e. status is not success).
+ */
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor

@@ -11,6 +11,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
+/**
+ * Handles asynchronous execution of the analysis engine for a saved request.
+ * Invoked after a request has been persisted so the caller receives a response immediately
+ * while processing continues in a background thread.
+ */
 @Service
 public class RequestProcessorService {
 
@@ -23,6 +28,12 @@ public class RequestProcessorService {
         this.engineService = engineService;
     }
 
+    /**
+     * Runs the engine for the given request in a background thread.
+     * On success, persists all result fields and sets status to SUCCESS.
+     * On engine failure, sets status to FAILED and saves without result data.
+     * The {@code @Transactional} annotation ensures the final status update is atomic.
+     */
     @Async
     @Transactional
     public void processAsync(UUID requestId) {

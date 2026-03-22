@@ -5,6 +5,10 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/**
+ * Confidence percentages (0–100) for each generational cohort as returned by the engine.
+ * All seven fields are always populated on a successful analysis.
+ */
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor

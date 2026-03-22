@@ -15,6 +15,11 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.UUID;
 
+/**
+ * REST controller for all analysis endpoints under /api/v1/analysis/{customer_id}.
+ * Handles input validation (UUID format, limit/offset bounds, enum values) and delegates
+ * business logic to {@link AnalysisRequestService}.
+ */
 @RestController
 @RequestMapping("/api/v1/analysis")
 public class AnalysisController {
@@ -28,6 +33,11 @@ public class AnalysisController {
         this.analysisRequestRepository = analysisRequestRepository;
     }
 
+    /**
+     * POST /analysis/{customer_id}/requests
+     * Validates the request body and creates a new analysis request.
+     * Returns 201 with the persisted request DTO, or 400 if the body or customer ID is invalid.
+     */
     @PostMapping("/{customer_id}/requests")
     public ResponseEntity<?> createRequest(
             @PathVariable("customer_id") String customerId,
@@ -64,6 +74,11 @@ public class AnalysisController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    /**
+     * GET /analysis/{customer_id}/requests/{request_id}
+     * Returns a single request by ID. Returns 404 if the request does not exist
+     * or belongs to a different customer.
+     */
     @GetMapping("/{customer_id}/requests/{request_id}")
     public ResponseEntity<?> getRequest(
             @PathVariable("customer_id") String customerId,
@@ -93,6 +108,13 @@ public class AnalysisController {
         return ResponseEntity.ok(AnalysisRequestService.toDTO(request));
     }
 
+    /**
+     * GET /analysis/{customer_id}/requests
+     * Returns a filtered, paginated list of requests for the customer.
+     * All filter parameters are optional; limit defaults to 100, offset defaults to 0.
+     * Returns 400 for invalid UUIDs, out-of-range limit/offset, bad date formats,
+     * or unrecognised status/generation values.
+     */
     @GetMapping("/{customer_id}/requests")
     public ResponseEntity<?> getRequests(
             @PathVariable("customer_id") String customerId,
@@ -176,6 +198,33 @@ public class AnalysisController {
                 customerUUID, limit, offset, startDT, endDT, userUUID, statusEnum, generationEnum));
     }
 
+    /**
+     * GET /analysis/{customer_id}/statistics
+     * Returns live statistics for all of the customer's requests.
+     * Returns 400 for an invalid customer UUID, 404 if the customer does not exist.
+     */
+    @GetMapping("/{customer_id}/statistics")
+    public ResponseEntity<?> getStatistics(
+            @PathVariable("customer_id") String customerId) {
+
+        UUID customerUUID;
+        try {
+            customerUUID = UUID.fromString(customerId);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Invalid customer_id: must be a valid UUID");
+        }
+
+        return analysisRequestService.getStatistics(customerUUID)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    }
+
+    /**
+     * GET /analysis/{customer_id}/users
+     * Returns a paginated list of all users for the customer, each with their request results.
+     * Users are ordered by UUID for stable pagination. Returns 400 for invalid inputs.
+     */
     @GetMapping("/{customer_id}/users")
     public ResponseEntity<?> getUsers(
             @PathVariable("customer_id") String customerId,
@@ -203,6 +252,11 @@ public class AnalysisController {
         return ResponseEntity.ok(analysisRequestService.getUsers(customerUUID, limit, offset));
     }
 
+    /**
+     * GET /analysis/{customer_id}/users/{user_id}
+     * Returns a single user with all their request results.
+     * Returns 404 if no requests exist for that customer/user combination.
+     */
     @GetMapping("/{customer_id}/users/{user_id}")
     public ResponseEntity<?> getUser(
             @PathVariable("customer_id") String customerId,

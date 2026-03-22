@@ -11,6 +11,11 @@ import java.io.OutputStream;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Thin wrapper around the AgeOverflow-Engine command-line binary.
+ * Serialises input to JSON, writes it to the process stdin, and deserialises the result from stdout.
+ * Throws {@link com.ageoverflow.gcas.exception.EngineException} on any process or parse failure.
+ */
 @Service
 public class EngineService {
 
@@ -22,6 +27,16 @@ public class EngineService {
         this.enginePath = enginePath;
     }
 
+    /**
+     * Runs the engine binary synchronously for the given request and photo set.
+     * Passes a JSON payload via stdin and reads the result JSON from stdout.
+     *
+     * @param requestId used as the {@code id} field in the engine's input payload
+     * @param photos    base64-encoded photo strings to analyse
+     * @return the parsed {@link EngineResult} from the engine's stdout
+     * @throws com.ageoverflow.gcas.exception.EngineException if the process fails to start,
+     *         exits with a non-zero code, or returns unparseable output
+     */
     public EngineResult compute(UUID requestId, List<String> photos) {
         String inputJson;
         try {

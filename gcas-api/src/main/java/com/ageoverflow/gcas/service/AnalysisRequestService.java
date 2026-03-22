@@ -14,10 +14,13 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+import com.ageoverflow.gcas.dto.StatisticsContentsDTO;
+import com.ageoverflow.gcas.dto.StatisticsDTO;
 import com.ageoverflow.gcas.dto.UserDTO;
 import com.ageoverflow.gcas.dto.UserResultDTO;
 
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +42,12 @@ public class AnalysisRequestService {
         this.requestProcessorService = requestProcessorService;
     }
 
+    /**
+     * Creates and persists a new analysis request, then kicks off async engine processing.
+     * The customer account is created automatically if it does not yet exist.
+     * Persistence is guaranteed before the method returns
+     * that data is saved before a success response is sent to the caller.
+     */
     public AnalysisRequestDTO createRequest(UUID customerId, AnalysisRequestBody body) {
         Customer customer = customerRepository.findById(customerId)
                 .orElseGet(() -> customerRepository.save(new Customer(customerId)));
@@ -50,7 +59,7 @@ public class AnalysisRequestService {
         request.setUrgent(body.isUrgent());
         request.setPhotos(body.getPhotos());
 
-        // Persist before kicking off processing — satisfies the persistence guarantee
+        // Persist before kicking off processing, satisfies the persistence guarantee
         AnalysisRequest saved = analysisRequestRepository.save(request);
 
         requestProcessorService.processAsync(saved.getId());
@@ -58,6 +67,11 @@ public class AnalysisRequestService {
         return toDTO(saved);
     }
 
+    /**
+     * Returns a filtered, paginated list of analysis requests for a customer.
+     * All filter parameters are optional and additive; only supplied filters are applied.
+     * Results are ordered by creation time ascending before limit/offset are applied.
+     */
     public List<AnalysisRequestDTO> getRequests(
             UUID customerId, int limit, int offset,
             OffsetDateTime start, OffsetDateTime end,
@@ -91,13 +105,21 @@ public class AnalysisRequestService {
                 .toList();
     }
 
+    /**
+     * Returns a paginated list of all users associated with a customer.
+     * Each user entry includes summarised results for all their requests.
+     * Users are sorted by UUID for stable pagination across calls.
+     */
     public List<UserDTO> getUsers(UUID customerId, int limit, int offset) {
         Map<UUID, List<AnalysisRequest>> byUser = analysisRequestRepository
                 .findByCustomerId(customerId)
                 .stream()
                 .collect(Collectors.groupingBy(AnalysisRequest::getUserId));
 
+        // Sort by userId for stable pagination (no ordering required,
+        // but offset/limit tests require consistent ordering across requests)
         return byUser.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
                 .map(e -> new UserDTO(e.getKey(), e.getValue().stream()
                         .map(AnalysisRequestService::toUserResultDTO)
                         .toList()))
@@ -106,6 +128,78 @@ public class AnalysisRequestService {
                 .toList();
     }
 
+    /**
+     * Computes live statistics for all of a customer's requests.
+     * Returns {@link Optional#empty()} if the customer does not exist (maps to 404).
+     * Mean and median are exact values derived from SUCCESS requests only.
+     * Buckets use decade lower-bounds (20–80); ages below 20 are counted in the 20 bucket,
+     * ages 80 and above are counted in the 80 bucket.
+     */
+    public Optional<StatisticsDTO> getStatistics(UUID customerId) {
+        // 404 if the customer has never been seen
+        if (!customerRepository.existsById(customerId)) {
+            return Optional.empty();
+        }
+
+        List<AnalysisRequest> all = analysisRequestRepository.findByCustomerId(customerId);
+
+        // "Number of all requests for this customer", any status
+        int totalRequests = all.size();
+
+        //Number of all users for this customer - distinct user IDs
+        long totalUsers = all.stream()
+                .map(AnalysisRequest::getUserId)
+                .distinct()
+                .count();
+
+        // mean and median are computed only over SUCCESS requests (only they have ages)
+        List<Double> ages = all.stream()
+                .filter(r -> r.getStatus() == RequestStatus.SUCCESS)
+                .map(AnalysisRequest::getAge)
+                .filter(a -> a != null)
+                .sorted()
+                .toList();
+
+        double mean = 0;
+        double median = 0;
+
+        if (!ages.isEmpty()) {
+            // exact mean, sum / count
+            mean = ages.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+
+            // exact median, central point of sorted data
+            int n = ages.size();
+            if (n % 2 == 0) {
+                median = (ages.get(n / 2 - 1) + ages.get(n / 2)) / 2.0;
+            } else {
+                median = ages.get(n / 2);
+            }
+        }
+
+        // Buckets: keys 20–80 (step 10), always all 7 present.
+        // bucket = floor(age/10)*10, capped to [20, 80]
+        Map<Integer, Long> buckets = new LinkedHashMap<>();
+        for (int i = 20; i <= 80; i += 10) {
+            buckets.put(i, 0L);
+        }
+        for (Double age : ages) {
+            int bucket = Math.min((int) (age / 10) * 10, 80);
+            bucket = Math.max(bucket, 20);
+            buckets.merge(bucket, 1L, Long::sum);
+        }
+
+        StatisticsContentsDTO contents = new StatisticsContentsDTO(
+                (int) totalUsers, totalRequests, mean, median, buckets);
+
+        // generated_at = now, since stats are always computed live
+        return Optional.of(new StatisticsDTO(OffsetDateTime.now(), contents));
+    }
+
+    /**
+     * Returns the user with all their request results for the given customer/user pair.
+     * Returns {@link Optional#empty()} if no requests exist for that combination,
+     * which the controller maps to a 404 response.
+     */
     public Optional<UserDTO> getUserByCustomerAndUser(UUID customerId, UUID userId) {
         List<AnalysisRequest> requests = analysisRequestRepository
                 .findByCustomerIdAndUserId(customerId, userId);
@@ -115,6 +209,7 @@ public class AnalysisRequestService {
                 .toList()));
     }
 
+    /** Maps an {@link AnalysisRequest} to the summarised {@link UserResultDTO} shape used inside user responses. */
     private static UserResultDTO toUserResultDTO(AnalysisRequest request) {
         String primaryGeneration = request.getPrimaryGeneration() != null
                 ? request.getPrimaryGeneration().getValue() : null;
@@ -127,6 +222,10 @@ public class AnalysisRequestService {
         );
     }
 
+    /**
+     * Maps an {@link AnalysisRequest} entity to the full {@link AnalysisRequestDTO} API shape.
+     * The {@code result} field is only populated when status is SUCCESS; it is null otherwise.
+     */
     public static AnalysisRequestDTO toDTO(AnalysisRequest request) {
         ResultDTO result = null;
         if (request.getStatus() == RequestStatus.SUCCESS) {

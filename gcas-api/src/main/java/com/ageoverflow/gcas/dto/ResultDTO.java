@@ -5,6 +5,10 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/**
+ * The analysis result embedded inside a successful {@link AnalysisRequestDTO}.
+ * Contains the engine checksum, per-generation confidence scores, the dominant generation, and estimated age.
+ */
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor

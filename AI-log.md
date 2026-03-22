@@ -666,3 +666,127 @@ Test coverage expected after this
 ├────────────────────────────────────┼────────────────────────────┤
 │ test_generated_at                  │ valid RFC3339 timestamp ✅ │
 └────────────────────────────────────┴────────────────────────────┘
+
+Is there anything in this project that could be tweaked so when it is deployed, and scaled and stress tested, it will perform better
+
+⏺ Let me read the key files to give you concrete, code-grounded recommendations.
+
+⏺ Searched for 2 patterns, read 7 files (ctrl+o to expand)
+
+⏺ Here's a concrete breakdown of everything that will hurt under load, ordered by severity:
+
+  ---
+Critical — will break at scale
+
+1. Java-side pagination (getRequests, line 99–105)
+
+// This loads ALL matching rows from Postgres, then discards most of them in Java
+.findAll(spec, Sort.by(...))
+.stream()
+.skip(offset)
+.limit(limit)
+This is O(N) memory and DB transfer for every request. Replace with PageRequest:
+Pageable pageable = PageRequest.of(offset / limit, limit, Sort.by(ASC, "createdAt"));
+return analysisRequestRepository.findAll(spec, pageable).getContent().stream().map(...).toList();
+
+2. Full table scan in getUsers() (line 113–129)
+
+findByCustomerId() fetches every request for that customer into memory, groups in Java, then applies skip/limit in Java. A customer with 100k requests returns all 100k rows to serve page 2
+of 10 users. This needs a DB-side GROUP BY user_id query with proper pagination.
+
+3. Full table scan in getStatistics() (line 144–196)
+
+Same problem — loads all requests into Java to compute mean/median/buckets. AVG(age), COUNT(*), COUNT(DISTINCT user_id), and bucket counts are all expressible as a single SQL query. The
+Java sort + index arithmetic to find the median is particularly expensive.
+
+  ---
+High Impact — will degrade under load
+
+4. No database indexes
+
+analysis_requests has no indexes beyond the primary key. Every filter in getRequests hits a full table scan:
+-- all of these columns need indexes:
+customer_id    -- every query filters by this
+user_id        -- filter + grouping
+status         -- common filter
+created_at     -- sort column + date range filter
+primary_generation -- generation filter
+Add these via Flyway/Liquibase migrations. Without them, query time is O(total rows), not O(result rows).
+
+5. Unbounded @Async thread pool (RequestProcessorService.java:37)
+
+Spring's default @Async executor is an unbounded SimpleAsyncTaskExecutor — it spawns a new thread per task. Under burst load, this means unbounded threads, each holding a DB connection,
+each potentially spawning an OS process. Configure a bounded pool:
+@Bean
+TaskExecutor engineExecutor() {
+ThreadPoolTaskExecutor exec = new ThreadPoolTaskExecutor();
+exec.setCorePoolSize(4);
+exec.setMaxPoolSize(16);
+exec.setQueueCapacity(500);
+exec.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+return exec;
+}
+
+6. No timeout on the engine process (EngineService.java:65–68)
+
+output = new String(process.getInputStream().readAllBytes()); // blocks forever if engine hangs
+int exitCode = process.waitFor();
+A hung or slow engine binary will block a thread indefinitely. Use process.waitFor(30, TimeUnit.SECONDS) and kill the process if it times out.
+
+7. No HikariCP connection pool tuning
+
+Default pool size is 10 connections. Under concurrent load with async processing (each processAsync call needs a connection), the pool exhausts quickly. Set
+spring.datasource.hikari.maximum-pool-size to match your thread pool max, and configure connection-timeout so requests fail fast rather than queuing indefinitely.
+
+  ---
+Medium Impact
+
+8. Race condition on customer upsert (createRequest, line 52–53)
+
+customerRepository.findById(customerId)
+.orElseGet(() -> customerRepository.save(new Customer(customerId)));
+Two concurrent POST requests for the same new customer will both find no row and both try to insert — one will get a unique constraint violation. Add @Transactional to createRequest, or use
+a saveIfAbsent / INSERT ... ON CONFLICT DO NOTHING native query.
+
+9. show-sql=true in production (application.properties:19)
+
+Logs every query to stdout. Under load this is significant I/O overhead and fills your log aggregation system. Disable it via an env-var-overridable prod profile.
+
+  ---
+Quick wins
+
+10. spring.h2.console.enabled=true is hardcoded
+
+Should be disabled in any non-local environment. Even though the datasource URL changes, the console servlet is still mounted.
+
+11. Photos @ElementCollection lazy loads during processAsync
+
+The processAsync call does request.getPhotos() (line 46) which triggers a lazy load join query against request_photos. Since processAsync runs in its own @Transactional context, this works,
+but it's a hidden N+1 if you ever process in batches. Worth being aware of.
+
+  ---
+Summary table
+
+┌─────────────────────────────┬────────────────────────────┬───────────────────┐
+│            Issue            │            File            │      Impact       │
+├─────────────────────────────┼────────────────────────────┼───────────────────┤
+│ Java-side skip/limit        │ AnalysisRequestService:99  │ OOM at scale      │
+├─────────────────────────────┼────────────────────────────┼───────────────────┤
+│ Full scan in getUsers       │ AnalysisRequestService:113 │ OOM at scale      │
+├─────────────────────────────┼────────────────────────────┼───────────────────┤
+│ Full scan in getStatistics  │ AnalysisRequestService:144 │ Slow + memory     │
+├─────────────────────────────┼────────────────────────────┼───────────────────┤
+│ Missing DB indexes          │ AnalysisRequest entity     │ All queries O(N)  │
+├─────────────────────────────┼────────────────────────────┼───────────────────┤
+│ Unbounded async thread pool │ RequestProcessorService:37 │ Thread explosion  │
+├─────────────────────────────┼────────────────────────────┼───────────────────┤
+│ No engine process timeout   │ EngineService:65           │ Thread starvation │
+├─────────────────────────────┼────────────────────────────┼───────────────────┤
+│ No HikariCP tuning          │ application.properties     │ Pool exhaustion   │
+├─────────────────────────────┼────────────────────────────┼───────────────────┤
+│ Customer upsert race        │ AnalysisRequestService:52  │ 500 on burst      │
+├─────────────────────────────┼────────────────────────────┼───────────────────┤
+│ show-sql=true               │ application.properties:19  │ Log flood         │
+└─────────────────────────────┴────────────────────────────┴───────────────────┘
+
+The three Java-side pagination issues and the missing indexes are by far the most urgent — they turn what should be O(page_size) operations into O(total_rows) operations.
