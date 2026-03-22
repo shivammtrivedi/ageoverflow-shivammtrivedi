@@ -167,4 +167,431 @@ and wait for it to be ready.
 - Removed the Java/Maven build — the Dockerfile handles that now
 - docker compose up --build -d — starts both containers in the background (-d = detached)
 - Health poll loop — waits up to 60 seconds for the app to respond on /api/v1/health before exiting. This ensures the CI test runner doesn't hit the app before it's ready
-- Exits 0 when healthy, exits 1 if it never starts — CI will correctly pass or fail based on this       
+- Exits 0 when healthy, exits 1 if it never starts — CI will correctly pass or fail based on this     
+
+so I was failing the tests on github: Skip to content                                                                                                                                                                                                                                                                    
+CSSE6400                                                                                                                                                                                                                                                                                                                   
+ageoverflow-shivammtrivedi                                                                                                                                                                                                                                                                                                 
+Repository navigation                                                                                                                                                                                                                                                                                                      
+Code                                                                                                                                                                                                                                                                                                                       
+Issues                                                                                                                                                                                                                                                                                                                     
+Pull requests                                                                                                                                                                                                                                                                                                              
+Actions                                                                                                                                                                                                                                                                                                                    
+Projects                                                                                                                                                                                                                                                                                                                   
+Wiki                                                                                                                                                                                                                                                                                                                       
+Security                                                                                                                                                                                                                                                                                                                   
+Insights                                                                                                                                                                                                                                                                                                                   
+Settings                                                                                                                                                                                                                                                                                                                   
+Cloud Assignment                                                                                                                                                                                                                                                                                                           
+fix DB readiness race, add missing endpoints (GET /requests/{id}, GET… #11                                                                                                                                                                                                                                                 
+All jobs                                                                                                                                                                                                                                                                                                                   
+Run details                                                                                                                                                                                                                                                                                                                
+deploy / Build & Test (Stage 1)                                                                                                                                                                                                                                                                                            
+cancelled 8 hours ago in 3m 52s                                                                                                                                                                                                                                                                                            
+Search logs                                                                                                                                                                                                                                                                                                                
+5s                                                                                                                                                                                                                                                                                                                         
+2s                                                                                                                                                                                                                                                                                                                         
+7s                                                                                                                                                                                                                                                                                                                         
+14s                                                                                                                                                                                                                                                                                                                        
+1m 35s                                                                                                                                                                                                                                                                                                                     
+1s                                                                                                                                                                                                                                                                                                                         
+2s                                                                                                                                                                                                                                                                                                                         
+22s                                                                                                                                                                                                                                                                                                                        
+7s                                                                                                                                                                                                                                                                                                                         
+0s                                                                                                                                                                                                                                                                                                                         
+1m 9s                                                                                                                                                                                                                                                                                                                      
+Run echo "running tests...."                                                                                                                                                                                                                                                                                               
+echo "running tests...."                                                                                                                                                                                                                                                                                                 
+cd marking && poetry run pytest functionality --timeout 15                                                                                                                                                                                                                                                               
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}                                                                                                                                                                                                                                                               
+env:                                                                                                                                                                                                                                                                                                                     
+pythonLocation: /opt/actions-runner/_work/_tool/Python/3.13.12/x64                                                                                                                                                                                                                                                     
+PKG_CONFIG_PATH: /opt/actions-runner/_work/_tool/Python/3.13.12/x64/lib/pkgconfig                                                                                                                                                                                                                                      
+Python_ROOT_DIR: /opt/actions-runner/_work/_tool/Python/3.13.12/x64                                                                                                                                                                                                                                                    
+Python2_ROOT_DIR: /opt/actions-runner/_work/_tool/Python/3.13.12/x64                                                                                                                                                                                                                                                   
+Python3_ROOT_DIR: /opt/actions-runner/_work/_tool/Python/3.13.12/x64                                                                                                                                                                                                                                                   
+LD_LIBRARY_PATH: /opt/actions-runner/_work/_tool/Python/3.13.12/x64/lib                                                                                                                                                                                                                                                
+VENV: .venv/bin/activate                                                                                                                                                                                                                                                                                               
+pytest_github_report: true                                                                                                                                                                                                                                                                                             
+pytest_report_title: :stethoscope: Functionality Tests                                                                                                                                                                                                                                                                 
+pytest_verbosity: 2                                                                                                                                                                                                                                                                                                    
+running tests....                                                                                                                                                                                                                                                                                                          
+============================= test session starts ==============================                                                                                                                                                                                                                                           
+platform linux -- Python 3.13.12, pytest-9.0.2, pluggy-1.6.0                                                                                                                                                                                                                                                               
+rootdir: /opt/actions-runner/_work/ageoverflow-shivammtrivedi/ageoverflow-shivammtrivedi/marking                                                                                                                                                                                                                           
+configfile: pyproject.toml                                                                                                                                                                                                                                                                                                 
+plugins: github-report-0.0.1, timeout-2.4.0                                                                                                                                                                                                                                                                                
+timeout: 15.0s                                                                                                                                                                                                                                                                                                             
+timeout method: signal                                                                                                                                                                                                                                                                                                     
+timeout func_only: False                                                                                                                                                                                                                                                                                                   
+collected 39 items                                                                                                                                                                                                                                                                                                         
+functionality/test_health.py .                                           [  2%]                                                                                                                                                                                                                                            
+Error: The operation was canceled.                                                                                                                                                                                                                                                                                         
+0s                                                                                                                                                                                                                                                                                                                         
+0s                                                                                                                                                                                                                                                                                                                         
+0s                                                                                                                                                                                                                                                                                                                         
+0s                                                                                                                                                                                                                                                                                                                         
+1s                                                                                                                                                                                                                                                                                                                         
+0s                                                                                                                                                                                                                                                                                                                         
+. Which use the tests in that folder. It seems like the testing times out on github, could you check my code and see why this could be happening.
+
+Explore(Explore codebase structure)
+⎿  Done (46 tool uses · 55.6k tokens · 1m 9s)
+(ctrl+o to expand)
+
+⏺ Let me look at the actual source files to understand the implementation state.
+
+⏺ Searched for 1 pattern, read 4 files (ctrl+o to expand)
+
+⏺ Now I have a clear picture. Let me check the remaining files quickly.
+
+⏺ Read 3 files (ctrl+o to expand)
+
+⏺ Now I have a full picture. Here's the diagnosis:
+
+Root Causes of Test Failures/Timeouts
+
+1. Engine never called (causes all wait_for() tests to timeout)
+
+The biggest issue. Every test that calls wait_for() polls GET /requests/{id} until status != "pending", but your implementation never processes the request — status stays pending forever. With --timeout 15 per test, each such test hangs for 15 seconds then gets killed.
+
+This affects: test_basic, test_multiple, test_basic_read, test_request_urgent, test_list_filter_status, and nearly all user/stats tests.
+
+2. Missing endpoints (causes 404/500 failures)
+
+Your controller only has POST and GET /requests. Missing:
+- GET /analysis/{customer_id}/requests/{request_id} — called by wait_for() in every test
+- GET /analysis/{customer_id}/statistics
+- GET /analysis/{customer_id}/users
+- GET /analysis/{customer_id}/users/{user_id}
+
+3. Wrong default limit (causes test failures)
+
+AnalysisController.java:62 — defaultValue = "20" but the spec and tests expect 100.
+
+4. Missing validation in GET /requests (causes test failures)
+
+The controller has no validation on query params. These tests expect 400:
+- limit=0 or limit=2000 (valid range: 1–1000)
+- offset=-1
+- start=not_a_time / end=not_a_time (must be RFC3339)
+- user_id=billy (must be UUID)
+- status=sleepy (must be pending/success/failed)
+- generation=zillennial (must be valid enum value)
+
+5. limit/offset and filtering not applied
+
+AnalysisRequestService.java:46-52 — getRequests() ignores limit, offset entirely and has no filtering logic.
+
+6. toDTO() always returns null result
+
+AnalysisRequestService.java:64 — hardcoded null for result, so even if you process requests and populate the entity fields, the API will never return result data.
+
+  ---
+What needs fixing
+
+1. Integrate the engine: After saving a request, process it asynchronously (Spring @Async or a thread pool). The engine binary from https://github.com/CSSE6400/AgeOverflow-Engine needs to be in your Docker image and called per request, then the result parsed and saved back to DB.
+2. Add the 4 missing endpoints to AnalysisController.
+3. Fix default limit: Change defaultValue = "20" → "100" in GET /requests.
+4. Add query param validation: validate limit bounds, non-negative offset, RFC3339 dates, UUID user_id, enum status/generation.
+5. Apply limit/offset/filtering in getRequests().
+6. Fix toDTO() to map result fields when status is SUCCESS.
+
+The most urgent fix for the timeout issue specifically is items 1 and 2 — the engine integration and the GET /requests/{id} endpoint (since wait_for() calls that endpoint in a loop). Without those, the majority of the test suite will timeout.
+
+Would you like me to implement these fixes?
+
+✻ Brewed for 3m 20s
+
+❯ what is the best first step to take and why. Is it what the spec and api spec says
+
+⏺ The best first step is integrating the engine + adding GET /requests/{request_id}, and here's why:
+
+Why this first
+
+Right now, wait_for() in the tests does this:
+response = requests.get(api(f"/analysis/{customer}/requests/{request_id}"))
+if response.status_code == 200 and data.get("status") != "pending":
+return data
+time.sleep(2)  # repeat until 15s test timeout
+
+Two things are broken simultaneously:
+1. The endpoint doesn't exist → always 404 → wait_for() loops until killed
+2. Even if it existed, status never changes from pending → same result
+
+This is what's causing the cancellation. 39 tests, most call wait_for(), each hangs for 15 seconds = the CI run dies after ~4 minutes. The validation tests that fail are just failures, not timeouts — they don't cause the cancellation.
+
+Does the spec back this up?
+
+Yes. The spec is explicit:
+
+"It is not possible to return a result immediately for a submitted image set. Clients will need to query the GCAS to obtain results at a later time."
+
+This directly describes the polling pattern that wait_for() tests. The entire Stage 1 test suite is designed around this async request/poll flow. Without the engine running and GET /requests/{id} working, almost nothing else can be tested.
+
+The order of priority
+
+1. Engine integration (async background processing) + GET /requests/{id} + fix toDTO() to return result — unblocks ~20+ tests from timing out
+2. Fix GET /requests validation (limit/offset bounds, date format, UUID, status enum, generation enum) + fix default limit to 100 — fixes the validation tests
+3. Add GET /users, GET /users/{id}, GET /statistics — unblocks the remaining test files
+
+Would you like to start on step 1?
+
+✻ Cooked for 41s
+
+❯ yes what is the plan for step one
+
+⏺ Let me check the engine repo and your Dockerfile before outlining the plan.
+
+⏺ Read 3 files (ctrl+o to expand)
+
+⏺ Here's the plan for step 1:
+
+  ---
+Step 1 Plan
+
+What we're building
+
+A request comes in → saved to DB as pending → background thread calls the engine → engine output parsed → DB updated to success/failed → GET /requests/{id} returns the result.
+
+  ---
+5 concrete changes
+
+1. Dockerfile — download engine binary
+
+In the runtime stage, before switching to the spring user, download the engine binary from GitHub releases and chmod +x it. The CI runs Linux amd64, so you need the correct binary. You need to verify the exact URL from: https://github.com/CSSE6400/AgeOverflow-Engine/releases
+
+2. New EngineService.java
+
+Wraps the binary call using ProcessBuilder. Takes the list of base64 photo strings, passes them to the engine (as args or stdin — you need to check the engine README for its exact CLI interface), reads stdout, parses the JSON output into a ResultDTO.
+
+3. New RequestProcessorService.java with @Async
+
+An @Async method that:
+- Receives the saved request ID
+- Loads photos from DB
+- Calls EngineService
+- On success: updates request fields (checksum, generations, age, status = SUCCESS)
+- On failure: sets status = FAILED
+- Saves back to DB
+
+4. Update AnalysisRequestService.createRequest()
+
+After analysisRequestRepository.save(request) (already done for persistence guarantee), call requestProcessorService.processAsync(saved.getId()) to kick off background processing.
+
+5. Fix AnalysisController + AnalysisRequestService
+
+- Add GET /{customer_id}/requests/{request_id} endpoint — validates both UUIDs, returns 404 if not found or customer doesn't match, 200 with DTO otherwise
+- Fix toDTO() to populate ResultDTO from entity fields when status is SUCCESS
+
+6. Enable async on the application
+
+Add @EnableAsync to GcasApiApplication.java.
+
+  ---
+One thing to check first
+
+Before writing any code, you need to verify the engine's CLI interface from its README:
+- How are photos passed in? (command-line args, stdin, a file?)
+- What does the output JSON look like exactly?
+
+That determines how EngineService calls the binary. Everything else is independent of that detail. Want to check the engine repo and share what you find, or should I proceed with a reasonable assumption based on the test data?
+
+✻ Brewed for 55s  
+
+What is the plan for creating the Engine service, and reference the spec when you lay it out
+
+⏺ Here's the plan for EngineService, with spec references:
+
+  ---
+EngineService Plan
+
+Responsibility
+
+A single method compute(UUID requestId, List<String> photos) that calls the binary and returns the parsed result. Nothing else — no DB access, no async concerns.
+
+  ---
+Input construction
+
+The engine expects:
+{ "id": "...", "content": ["<base64>", "<base64>"] }
+The id field maps to the request UUID. The content array is the photos list exactly as stored. Use Jackson ObjectMapper (already a Spring dependency) to serialise
+this.
+
+  ---
+Process invocation
+
+/app/engine compute --output '-'
+Using ProcessBuilder with stdin piped from the serialised JSON, stdout captured. The engine path /app/engine should be an @Value-injected property so it's
+overridable via application.properties (e.g. for local macOS dev without Docker).
+
+  ---
+Output parsing
+
+Engine returns:
+{ "id": "...", "results": { "checksum": "0x57", "generations": {...}, "primary_generation": "y", "age": 29 } }
+Parse stdout with Jackson into a private inner class mirroring this structure. Return just the results block mapped to a new EngineResult record:
+
+record EngineResult(String checksum, Map<String, Double> generations, String primaryGeneration, double age) {}
+
+This keeps the engine's output shape isolated from your API DTOs.
+
+  ---
+Error handling
+
+- Engine exits non-zero → throw EngineException (custom unchecked)
+- stdout can't be parsed → throw EngineException
+- The caller (RequestProcessorService) catches this and sets status to FAILED
+
+This is backed by the spec: "the GCAS must guarantee that it has not lost any analysis results, after changing the status of analysis job from 'pending'" —
+meaning a failed engine run must still update the status, not leave it as pending forever.
+
+  ---
+What it does NOT do
+
+- No @Async — that belongs in the processor
+- No DB access — single responsibility
+- No retries — the spec doesn't require them for stage 1
+
+  ---
+New files
+
+- service/EngineService.java — the service described above
+- exception/EngineException.java — simple unchecked exception
+
+application.properties change
+
+Add:
+engine.path=/app/engine
+
+Ready to write the code?
+
+✻ Cogitated for 35s
+
+ok what does the engine service do and how does it integrate with what we already have.
+
+⏺ Read 1 file (ctrl+o to expand)
+
+⏺ What EngineService does
+
+It's a thin wrapper around the binary. One public method: compute(UUID requestId, List<String> photos). It:
+1. Serialises the input JSON (id + content) using Jackson
+2. Spawns the engine process via ProcessBuilder, writing that JSON to stdin
+3. Reads the JSON response from stdout
+4. Deserialises the results block and returns it as an EngineResult
+5. Throws EngineException if the process exits non-zero or output can't be parsed
+
+How it integrates
+
+It sits between the binary and the rest of your app:
+
+createRequest() → saves to DB → RequestProcessorService.processAsync() [not yet written]
+↓
+EngineService.compute()
+↓
+/app/engine (binary)
+↓
+EngineResult returned
+↓
+update AnalysisRequest entity in DB
+
+EngineService knows nothing about the DB or async — just input in, result out. The engine path is injected from application.properties so it's not hardcoded.
+
+❯ What is the request processorservice and how does it integrate with what I already have
+
+⏺ What RequestProcessorService is
+
+It's the async bridge between saving a request and running the engine. Its one job: take a saved request ID, call the engine, and write the result back to the DB.
+
+It's @Async — meaning when createRequest() calls it, Spring runs it in a background thread and immediately returns the saved request to the client. The client    
+gets their 201 response straight away while processing happens in the background. This is exactly what the spec requires:
+
+"It is not possible to return a result immediately for a submitted image set. Clients will need to query the GCAS to obtain results at a later time."
+
+And persistence is still guaranteed because the save already happened before this service is called:
+
+"the GCAS must guarantee that the data has been saved to persistent storage before returning a success response"
+                                                                                                                                                                    
+---                                                                                                                                                             
+How it integrates with what you already have
+
+AnalysisController                                                                                                                                                
+↓
+AnalysisRequestService.createRequest()                                                                                                                            
+↓ saves to DB (status=PENDING) ← persistence guarantee met here                                                                                             
+↓ returns DTO to controller → 201 to client                                                                                                                 
+↓ calls processAsync() [background thread, doesn't block]                                                                                                   
+↓                                                                                                                                                     
+RequestProcessorService.processAsync(requestId)                                                                                                             
+↓ loads request + photos from DB via AnalysisRequestRepository                                                                                        
+↓                                                                                                                                                     
+EngineService.compute(requestId, photos) ← already written                                                                                                  
+↓ returns EngineResult                                                                                                                                
+↓                                                                                                                                                     
+maps EngineResult fields onto AnalysisRequest entity                                                                                                        
+sets status = SUCCESS, saves back to DB                                                                                                                     
+↓ (on EngineException)                                                                                                                                
+sets status = FAILED, saves back to DB
+
+It touches:
+- AnalysisRequestRepository — to load and save the request
+- EngineService — to run the engine
+- EngineException — to catch failures and set FAILED status
+- AnalysisRequest entity — writes checksum, age, generation fields back
+
+It does NOT touch the controller or the DTO layer — those are read-path concerns.  
+
+❯ Can you lay out what is the next step after this engine implementation.
+
+⏺ Step 2: Fix GET /requests
+
+These are the remaining failures in test_requests.py that don't require new endpoints — just fixes to the existing GET /analysis/{customer_id}/requests.
+
+1. Fix default limit (1 line change)
+
+defaultValue = "20" → "100". The spec says default is 100 and test_list_default_length explicitly checks for 100 results.
+
+2. Add query param validation (currently returns 200 for all of these, should be 400)
+
+┌─────────────┬───────────────────────┬─────────────────────────────────────────────────┐
+│    Param    │ Invalid value in test │                      Rule                       │
+├─────────────┼───────────────────────┼─────────────────────────────────────────────────┤
+│ limit       │ 0, 2000               │ must be 1–1000                                  │
+├─────────────┼───────────────────────┼─────────────────────────────────────────────────┤
+│ offset      │ -1                    │ must be ≥ 0                                     │
+├─────────────┼───────────────────────┼─────────────────────────────────────────────────┤
+│ start / end │ "not_a_time"          │ must be valid RFC3339                           │
+├─────────────┼───────────────────────┼─────────────────────────────────────────────────┤
+│ user_id     │ "billy"               │ must be valid UUID                              │
+├─────────────┼───────────────────────┼─────────────────────────────────────────────────┤
+│ status      │ "sleepy"              │ must be pending, success, or failed             │
+├─────────────┼───────────────────────┼─────────────────────────────────────────────────┤
+│ generation  │ "zillennial"          │ must be silent, baby_boomers, x, y, z, or alpha │
+└─────────────┴───────────────────────┴─────────────────────────────────────────────────┘
+
+3. Apply limit and offset
+
+getRequests() currently ignores both — test_list_custom_length creates 20 requests, asks for limit=5 and expects exactly 5 back.
+
+4. Apply filters
+
+┌─────────────┬─────────────────────────────────────────────────────────────────────────┐                                                                         
+│   Filter    │                                  Test                                   │                                                                       
+├─────────────┼─────────────────────────────────────────────────────────────────────────┤                                                                         
+│ user_id     │ test_list_filter_user — filter by UUID, expect only matching requests   │                                                                       
+├─────────────┼─────────────────────────────────────────────────────────────────────────┤
+│ status      │ test_list_filter_status — filter by success, expect only completed      │                                                                         
+├─────────────┼─────────────────────────────────────────────────────────────────────────┤                                                                         
+│ start / end │ test_list_requests_filter_date / test_list_requests_filter_date_dynamic │                                                                         
+├─────────────┼─────────────────────────────────────────────────────────────────────────┤                                                                         
+│ generation  │ tested in test_list_invalid_generation_only (only invalid case for now) │                                                                       
+└─────────────┴─────────────────────────────────────────────────────────────────────────┘
+
+5. Ensure ordering
+
+The spec says: "Requests are returned in creation date time-order, from earliest to latest." test_list_custom_length checks that offset=1 returns the             
+second-oldest request specifically, so ordering must be consistent.
+                                                                                                                                                                    
+---                                                                                                                                                               
+All of this is contained within AnalysisController.getRequests() and AnalysisRequestService.getRequests(). No new files needed — just expanding the existing
+method signatures and adding a JPA query with filters. 

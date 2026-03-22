@@ -21,11 +21,19 @@ RUN ./mvnw clean package -DskipTests
 # Use the smaller JRE-only image, we don't need the compiler at runtime
 FROM eclipse-temurin:21-jre
 
+ARG ENGINE_VERSION=v1.0.0
+
+WORKDIR /app
+
+# Download the engine binary as root, then lock down permissions
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/* && \
+    ARCH=$(arch | sed s/aarch64/arm64/ | sed s/x86_64/amd64/) && \
+    curl -o /app/engine -L https://github.com/CSSE6400/ageoverflow-engine/releases/download/${ENGINE_VERSION}/engine-${ENGINE_VERSION}-linux-${ARCH} && \
+    chmod +x /app/engine
+
 # Run as a non-root user to reduce security risk
 RUN groupadd -r spring && useradd -r -g spring spring
 USER spring:spring
-
-WORKDIR /app
 
 # Pull only the built JAR from the builder stage, nothing else carries over
 COPY --from=builder /app/target/*.jar app.jar
