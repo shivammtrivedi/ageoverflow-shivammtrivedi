@@ -1,3 +1,2 @@
-Structure/Architecture of this project was heavily inspired by the patient service from this youtube tutorial:
-https://www.youtube.com/watch?v=tseqdcFfTUY&t=1001s
-Source code: https://github.com/chrisblakely01/java-spring-microservices
+[1]Chris Blakely, “Build & Deploy a Production-Ready Patient Management System with Microservices: Java Spring Boot AWS,” YouTube, Mar. 07, 2025. https://www.youtube.com/watch?v=tseqdcFfTUY (accessed Mar. 26, 2026).
+‌
