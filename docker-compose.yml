@@ -1,12 +1,12 @@
 services:
 
   database:
-    image: postgres:16
+    image: postgres:18
     restart: always
     environment:
       POSTGRES_PASSWORD: verySecretPassword
       POSTGRES_USER: administrator
-      POSTGRES_DB: gcasdb
+      POSTGRES_DB: ageoverflowdb
     volumes:
       # Persist Postgres data to a local ./data folder so it survives container restarts
       - ./data:/var/lib/postgresql/data
@@ -17,7 +17,7 @@ services:
     restart: always
     environment:
       # Override the datasource properties from application.properties at runtime
-      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/gcasdb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/ageoverflowdb
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       SPRING_DATASOURCE_USERNAME: administrator
       SPRING_DATASOURCE_PASSWORD: verySecretPassword
