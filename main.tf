@@ -26,12 +26,12 @@ resource "aws_db_instance" "ageoverflow_database" {
  allocated_storage = 20
  max_allocated_storage = 1000
  engine = "postgres"
- engine_version = "18"
+ engine_version = "16"
  instance_class = "db.t3.micro"
  db_name = "ageoverflowdb"
  username = local.database_username
  password = local.database_password
- parameter_group_name = "default.postgres18"
+ parameter_group_name = "default.postgres16"
  skip_final_snapshot = true
  vpc_security_group_ids = [aws_security_group.ageoverflow_database.id]
  publicly_accessible = true
@@ -99,7 +99,7 @@ resource "aws_ecs_task_definition" "ageoverflow" {
     "image": "${local.image}",
     "cpu": 1024,
     "memory": 2048,
-    "name": "todo",
+    "name": "ageoverflow",
     "networkMode": "awsvpc",
     "portMappings": [
       {
@@ -132,7 +132,7 @@ resource "aws_ecs_task_definition" "ageoverflow" {
     "logConfiguration": {
       "logDriver": "awslogs",
       "options": {
-       "awslogs-group": "/ageoverflow/todo",
+       "awslogs-group": "/ageoverflow",
        "awslogs-region": "us-east-1",
        "awslogs-stream-prefix": "ecs",
        "awslogs-create-group": "true"
