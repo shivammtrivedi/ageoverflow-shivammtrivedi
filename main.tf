@@ -155,6 +155,12 @@ resource "aws_ecs_service" "ageoverflow" {
     security_groups  = [aws_security_group.ageoverflow.id]
     assign_public_ip = true
   }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.ageoverflow.arn
+    container_name   = "ageoverflow"
+    container_port   = 8080
+  }
 }
 
 resource "aws_security_group" "ageoverflow" {
