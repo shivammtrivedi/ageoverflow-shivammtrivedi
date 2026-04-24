@@ -790,3 +790,136 @@ Summary table
 └─────────────────────────────┴────────────────────────────┴───────────────────┘
 
 The three Java-side pagination issues and the missing indexes are by far the most urgent — they turn what should be O(page_size) operations into O(total_rows) operations.
+
+Is the java side pagination issue easy to fix?
+
+Yes, mostly — but there's a subtle trap with PageRequest that's worth knowing before you touch it.
+
+The suggested fix PageRequest.of(offset / limit, limit) only works when offset is a multiple of limit. If the test sends limit=100, offset=50, you get page 0, which generates
+OFFSET 0 — wrong result.
+
+The clean fix is to push the offset/limit to SQL directly via a small custom Pageable. Here's the change:
+
+Read 1 file (ctrl+o to expand)
+
+⏺ Update(gcas-api/src/main/java/com/ageoverflow/gcas/service/AnalysisRequestService.java)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Edit file                                                                                                                                                                      
+gcas-api/src/main/java/com/ageoverflow/gcas/service/AnalysisRequestService.java                                                                                                
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+96              spec = spec.and((root, query, cb) -> cb.equal(root.get("primaryGeneration"), generation));                                                                  
+97          }                                                                                                                                                                 
+98                                                                                                                                                                          
+99 +        // Push offset/limit to the database rather than fetching all rows and discarding in Java.                                                                        
+100 +        // PageRequest.of(page, size) only works when offset is a multiple of limit, so we use a                                                                          
+101 +        // custom Pageable that passes offset directly as the SQL OFFSET value. [1]                                                                                       
+102 +        Sort sort = Sort.by(Sort.Direction.ASC, "createdAt");                                                                                                             
+103 +        Pageable pageable = new OffsetPageable(offset, limit, sort);                                                                                                      
+104          return analysisRequestRepository
+100 -                .findAll(spec, Sort.by(Sort.Direction.ASC, "createdAt"))                                                                                                  
+105 +                .findAll(spec, pageable)                                                                                                                                  
+106 +                .getContent()                                                                                                                                             
+107                  .stream()
+102 -                .skip(offset)                                                                                                                                             
+103 -                .limit(limit)                                                                                                                                             
+108                  .map(AnalysisRequestService::toDTO)
+109                  .toList();
+110      }
+
+
+Can you explain the Async problem and what cna be done to fix it
+
+The problem
+
+Spring's default @Async executor is SimpleAsyncTaskExecutor — it spawns a brand new OS thread for every single call. No pool, no queue, no limit.
+
+When a burst of 500 POST requests arrives:
+- 500 calls to requestProcessorService.processAsync()
+- 500 new threads created simultaneously
+- Each thread holds a HikariCP database connection while processing
+- Each thread forks an OS process to run the engine binary
+- Default HikariCP pool is 10 connections → 490 threads block waiting for a connection
+- Default Postgres max_connections is 100 → connection errors start appearing
+- JVM runs out of memory / OS runs out of file descriptors
+
+This is the core bottleneck that makes the service fall over under burst load, regardless of how well you've scaled the Terraform.
+
+How hard is the fix?
+
+Very easy — one new @Bean and one annotation change. About 15 lines total.
+
+@Bean                                                                                                                                                                         
+TaskExecutor engineExecutor() {                                                                                                                                             
+ThreadPoolTaskExecutor exec = new ThreadPoolTaskExecutor();                                                                                                               
+exec.setCorePoolSize(4);     // always-on threads
+exec.setMaxPoolSize(16);     // burst capacity                                                                                                                            
+exec.setQueueCapacity(500);  // backpressure buffer                                                                                                                     
+exec.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());                                                                                              
+return exec;                                                                                                                                                            
+}
+
+Then on processAsync:                                                                                                                                                         
+@Async("engineExecutor")  // name the executor explicitly
+
+What the numbers mean
+
+- corePoolSize=4: 4 threads always ready, each can hold a DB connection — tune this to match HikariCP pool size
+- maxPoolSize=16: under burst, expand to 16 threads max (still bounded)
+- queueCapacity=500: up to 500 jobs wait in queue before expanding beyond core — protects against thread explosion
+- CallerRunsPolicy: if the queue is also full (>500 queued + 16 active), the HTTP request thread processes the job itself — adds natural backpressure instead of throwing an  
+  exception
+
+How necessary is it?
+
+Very — this is what causes the service to crash under load, not just slow down. Without it, a burst of concurrent POSTs will exhaust your DB connection pool and start        
+throwing 500s within seconds. The load test scenarios (Compliance Peak, etc.) are designed to trigger exactly this.
+
+Combined with HikariCP tuning (issue #7), these two fixes together are what make the difference between "handles modest load" and "handles the test scenarios."  
+
+No existing config class. I'll create one and update RequestProcessorService:
+
+⏺ Write(gcas-api/src/main/java/com/ageoverflow/gcas/config/AsyncConfig.java)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Create file                                                                                                                                                                    
+gcas-api/src/main/java/com/ageoverflow/gcas/config/AsyncConfig.java                                                                                                            
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+1 package com.ageoverflow.gcas.config;
+2
+3 import org.springframework.context.annotation.Bean;
+4 import org.springframework.context.annotation.Configuration;
+5 import org.springframework.core.task.TaskExecutor;
+6 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+7
+8 import java.util.concurrent.ThreadPoolExecutor;
+9
+10 /**
+11  * Replaces Spring's default SimpleAsyncTaskExecutor (unbounded, spawns a new thread per task)
+12  * with a bounded pool so a burst of POST requests cannot exhaust DB connections or JVM memory.
+13  *
+14  * Sizing rationale:
+15  *  - corePoolSize=4:    always-ready threads; matches the number of engine processes we want
+16  *                       running concurrently without contention.
+17  *  - maxPoolSize=16:    burst headroom; kept well below the HikariCP pool size so we never
+18  *                       have more threads competing for connections than there are connections.
+19  *  - queueCapacity=500: jobs queue here before new threads beyond core are spawned, providing
+20  *                       backpressure without dropping requests.
+21  *  - CallerRunsPolicy:  if both the queue and the pool are full, the HTTP request thread
+22  *                       processes the job itself — natural backpressure rather than rejection.
+23  */
+24 @Configuration
+25 public class AsyncConfig {
+26
+27     @Bean(name = "engineExecutor")
+28     public TaskExecutor engineExecutor() {
+29         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+30         executor.setCorePoolSize(4);
+31         executor.setMaxPoolSize(16);
+32         executor.setQueueCapacity(500);
+33         executor.setThreadNamePrefix("engine-");
+34         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+35         executor.initialize();
+36         return executor;
+37     }
+38 }

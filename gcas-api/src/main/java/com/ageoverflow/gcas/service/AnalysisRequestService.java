@@ -10,6 +10,8 @@ import com.ageoverflow.gcas.model.Generation;
 import com.ageoverflow.gcas.model.RequestStatus;
 import com.ageoverflow.gcas.repository.AnalysisRequestRepository;
 import com.ageoverflow.gcas.repository.CustomerRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -48,9 +50,12 @@ public class AnalysisRequestService {
      * Persistence is guaranteed before the method returns
      * that data is saved before a success response is sent to the caller.
      */
+    @org.springframework.transaction.annotation.Transactional
     public AnalysisRequestDTO createRequest(UUID customerId, AnalysisRequestBody body) {
-        Customer customer = customerRepository.findById(customerId)
-                .orElseGet(() -> customerRepository.save(new Customer(customerId)));
+        // Atomic upsert: concurrent first-requests for the same customer_id are safe.
+        // ON CONFLICT DO NOTHING means only one thread inserts; the rest skip silently.
+        customerRepository.insertIfAbsent(customerId);
+        Customer customer = customerRepository.findById(customerId).orElseThrow();
 
         AnalysisRequest request = new AnalysisRequest();
         request.setId(UUID.randomUUID());
@@ -96,35 +101,45 @@ public class AnalysisRequestService {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("primaryGeneration"), generation));
         }
 
+        // Push offset/limit to the database rather than fetching all rows and discarding in Java.
+        // PageRequest.of(page, size) only works when offset is a multiple of limit, so we use a
+        // custom Pageable that passes offset directly as the SQL OFFSET value.
+        Sort sort = Sort.by(Sort.Direction.ASC, "createdAt");
+        Pageable pageable = new OffsetPageable(offset, limit, sort);
         return analysisRequestRepository
-                .findAll(spec, Sort.by(Sort.Direction.ASC, "createdAt"))
+                .findAll(spec, pageable)
+                .getContent()
                 .stream()
-                .skip(offset)
-                .limit(limit)
                 .map(AnalysisRequestService::toDTO)
                 .toList();
     }
 
     /**
      * Returns a paginated list of all users associated with a customer.
-     * Each user entry includes summarised results for all their requests.
-     * Users are sorted by UUID for stable pagination across calls.
+     * Two-query approach, first fetch the paginated user IDs from the DB (tiny),
+     * then fetch only the requests for those users. Avoids loading every request in memory.
+     * Users are ordered by user_id for stable pagination across calls.
      */
     public List<UserDTO> getUsers(UUID customerId, int limit, int offset) {
+        // Query 1: DB-side DISTINCT user_id with LIMIT/OFFSET — returns only the IDs we need
+        Pageable pageable = new OffsetPageable(offset, limit, Sort.unsorted());
+        List<UUID> userIds = analysisRequestRepository
+                .findDistinctUserIdsByCustomerId(customerId, pageable);
+
+        if (userIds.isEmpty()) {
+            return List.of();
+        }
+
+        // Query 2: fetch requests only for the users on this page
         Map<UUID, List<AnalysisRequest>> byUser = analysisRequestRepository
-                .findByCustomerId(customerId)
+                .findByCustomerIdAndUserIdIn(customerId, userIds)
                 .stream()
                 .collect(Collectors.groupingBy(AnalysisRequest::getUserId));
 
-        // Sort by userId for stable pagination (no ordering required,
-        // but offset/limit tests require consistent ordering across requests)
-        return byUser.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .map(e -> new UserDTO(e.getKey(), e.getValue().stream()
+        return userIds.stream()
+                .map(uid -> new UserDTO(uid, byUser.getOrDefault(uid, List.of()).stream()
                         .map(AnalysisRequestService::toUserResultDTO)
                         .toList()))
-                .skip(offset)
-                .limit(limit)
                 .toList();
     }
 
@@ -253,5 +268,41 @@ public class AnalysisRequestService {
                 request.getStatus(),
                 result
         );
+    }
+
+    /**
+     * A Pageable implementation that translates directly to SQL OFFSET/LIMIT, avoiding the
+     * page-number arithmetic in PageRequest which only works when offset is a multiple of limit.
+     * Spring Data JPA reads getOffset() and getPageSize() to build the OFFSET/LIMIT clauses.
+     *
+     */
+    private record OffsetPageable(int offset, int limit, Sort sort) implements Pageable {
+        @Override public int getPageNumber()          {
+            return 0;
+        }
+        @Override public int getPageSize()            {
+            return limit;
+        }
+        @Override public long getOffset()             {
+            return offset;
+        }
+        @Override public Sort getSort()               {
+            return sort;
+        }
+        @Override public Pageable next()              {
+            throw new UnsupportedOperationException();
+        }
+        @Override public Pageable previousOrFirst()   {
+            throw new UnsupportedOperationException();
+        }
+        @Override public Pageable first()             {
+            throw new UnsupportedOperationException();
+        }
+        @Override public Pageable withPage(int p)     {
+            throw new UnsupportedOperationException();
+        }
+        @Override public boolean hasPrevious()        {
+            return false;
+        }
     }
 }

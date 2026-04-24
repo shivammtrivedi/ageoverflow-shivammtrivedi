@@ -34,7 +34,7 @@ public class RequestProcessorService {
      * On engine failure, sets status to FAILED and saves without result data.
      * The {@code @Transactional} annotation ensures the final status update is atomic.
      */
-    @Async
+    @Async("engineExecutor")
     @Transactional
     public void processAsync(UUID requestId) {
         AnalysisRequest request = analysisRequestRepository.findById(requestId).orElse(null);
