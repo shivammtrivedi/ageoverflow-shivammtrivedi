@@ -10,6 +10,7 @@ import com.ageoverflow.gcas.model.Generation;
 import com.ageoverflow.gcas.model.RequestStatus;
 import com.ageoverflow.gcas.repository.AnalysisRequestRepository;
 import com.ageoverflow.gcas.repository.CustomerRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -35,13 +36,19 @@ public class AnalysisRequestService {
     private final CustomerRepository customerRepository;
     private final AnalysisRequestRepository analysisRequestRepository;
     private final RequestProcessorService requestProcessorService;
+    private final SqsService sqsService;
+    private final String urgentQueueUrl;
 
     public AnalysisRequestService(CustomerRepository customerRepository,
                                    AnalysisRequestRepository analysisRequestRepository,
-                                   RequestProcessorService requestProcessorService) {
+                                   RequestProcessorService requestProcessorService,
+                                   SqsService sqsService,
+                                   @Value("${aws.sqs.urgent-queue-url}") String urgentQueueUrl) {
         this.customerRepository = customerRepository;
         this.analysisRequestRepository = analysisRequestRepository;
         this.requestProcessorService = requestProcessorService;
+        this.sqsService = sqsService;
+        this.urgentQueueUrl = urgentQueueUrl;
     }
 
     /**
@@ -67,7 +74,22 @@ public class AnalysisRequestService {
         // Persist before kicking off processing, satisfies the persistence guarantee
         AnalysisRequest saved = analysisRequestRepository.save(request);
 
-        requestProcessorService.processAsync(saved.getId());
+        // Schedule processing AFTER this transaction commits so the row is visible.
+        // If SQS is configured (queue URL non-empty), enqueue to SQS so the worker picks it up.
+        // Otherwise fall back to in-process async (local dev without SQS).
+        UUID requestId = saved.getId();
+        boolean urgent = saved.isUrgent();
+        org.springframework.transaction.support.TransactionSynchronizationManager
+                .registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        if (urgentQueueUrl != null && !urgentQueueUrl.isBlank()) {
+                            sqsService.enqueue(requestId, urgent);
+                        } else {
+                            requestProcessorService.processAsync(requestId);
+                        }
+                    }
+                });
 
         return toDTO(saved);
     }

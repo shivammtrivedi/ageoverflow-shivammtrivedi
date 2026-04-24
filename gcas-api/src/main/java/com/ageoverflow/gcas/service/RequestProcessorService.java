@@ -30,13 +30,23 @@ public class RequestProcessorService {
 
     /**
      * Runs the engine for the given request in a background thread.
-     * On success, persists all result fields and sets status to SUCCESS.
-     * On engine failure, sets status to FAILED and saves without result data.
-     * The {@code @Transactional} annotation ensures the final status update is atomic.
+     * Delegates to {@link #processRequest(UUID)} for the actual work.
      */
     @Async("engineExecutor")
     @Transactional
     public void processAsync(UUID requestId) {
+        processRequest(requestId);
+    }
+
+    /**
+     * Runs the engine synchronously for the given request ID.
+     * On success, persists all result fields and sets status to SUCCESS.
+     * On engine failure, sets status to FAILED and saves without result data.
+     * Called directly by the SQS worker after receiving a message.
+     * The {@code @Transactional} annotation ensures the final status update is atomic.
+     */
+    @Transactional
+    public void processRequest(UUID requestId) {
         AnalysisRequest request = analysisRequestRepository.findById(requestId).orElse(null);
         if (request == null) {
             return;

@@ -92,6 +92,7 @@ resource "aws_ecs_task_definition" "ageoverflow" {
   cpu                      = 1024
   memory                   = 2048
   execution_role_arn       = data.aws_iam_role.lab.arn
+  task_role_arn            = data.aws_iam_role.lab.arn
 
   container_definitions = <<DEFINITION
  [
@@ -127,6 +128,18 @@ resource "aws_ecs_task_definition" "ageoverflow" {
       {
        "name": "SPRING_JPA_HIBERNATE_DDL_AUTO",
        "value": "update"
+      },
+      {
+       "name": "GCAS_MODE",
+       "value": "api"
+      },
+      {
+       "name": "SQS_URGENT_QUEUE_URL",
+       "value": "${aws_sqs_queue.urgent.url}"
+      },
+      {
+       "name": "SQS_STANDARD_QUEUE_URL",
+       "value": "${aws_sqs_queue.standard.url}"
       }
     ],
     "logConfiguration": {
@@ -141,6 +154,85 @@ resource "aws_ecs_task_definition" "ageoverflow" {
    }
  ]
  DEFINITION
+}
+
+resource "aws_ecs_task_definition" "ageoverflow_worker" {
+  family                   = "ageoverflow-worker"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = 1024
+  memory                   = 2048
+  execution_role_arn       = data.aws_iam_role.lab.arn
+  task_role_arn            = data.aws_iam_role.lab.arn
+
+  container_definitions = <<DEFINITION
+ [
+   {
+    "image": "${local.image}",
+    "cpu": 1024,
+    "memory": 2048,
+    "name": "ageoverflow-worker",
+    "networkMode": "awsvpc",
+    "environment": [
+      {
+       "name": "SPRING_DATASOURCE_URL",
+       "value": "jdbc:postgresql://${aws_db_instance.ageoverflow_database.address}:${aws_db_instance.ageoverflow_database.port}/${aws_db_instance.ageoverflow_database.db_name}"
+      },
+      {
+       "name": "SPRING_DATASOURCE_DRIVER_CLASS_NAME",
+       "value": "org.postgresql.Driver"
+      },
+      {
+       "name": "SPRING_DATASOURCE_USERNAME",
+       "value": "${local.database_username}"
+      },
+      {
+       "name": "SPRING_DATASOURCE_PASSWORD",
+       "value": "${local.database_password}"
+      },
+      {
+       "name": "SPRING_JPA_HIBERNATE_DDL_AUTO",
+       "value": "update"
+      },
+      {
+       "name": "GCAS_MODE",
+       "value": "worker"
+      },
+      {
+       "name": "SQS_URGENT_QUEUE_URL",
+       "value": "${aws_sqs_queue.urgent.url}"
+      },
+      {
+       "name": "SQS_STANDARD_QUEUE_URL",
+       "value": "${aws_sqs_queue.standard.url}"
+      }
+    ],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+       "awslogs-group": "/ageoverflow-worker",
+       "awslogs-region": "us-east-1",
+       "awslogs-stream-prefix": "ecs",
+       "awslogs-create-group": "true"
+      }
+    }
+   }
+ ]
+ DEFINITION
+}
+
+resource "aws_ecs_service" "ageoverflow_worker" {
+  name            = "ageoverflow-worker"
+  cluster         = aws_ecs_cluster.ageoverflow.id
+  task_definition = aws_ecs_task_definition.ageoverflow_worker.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = data.aws_subnets.private.ids
+    security_groups  = [aws_security_group.ageoverflow.id]
+    assign_public_ip = true
+  }
 }
 
 resource "aws_ecs_service" "ageoverflow" {
