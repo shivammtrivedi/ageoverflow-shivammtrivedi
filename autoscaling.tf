@@ -1,11 +1,11 @@
-
-
 resource "aws_appautoscaling_target" "api" {
   max_capacity       = 4
   min_capacity       = 1
   resource_id        = "service/${aws_ecs_cluster.ageoverflow.name}/${aws_ecs_service.ageoverflow.name}"
   scalable_dimension = "ecs:service:DesiredCount"
   service_namespace  = "ecs"
+
+  depends_on = [aws_ecs_service.ageoverflow]
 }
 
 resource "aws_appautoscaling_policy" "api_cpu" {
@@ -32,6 +32,8 @@ resource "aws_appautoscaling_target" "worker" {
   resource_id        = "service/${aws_ecs_cluster.ageoverflow.name}/${aws_ecs_service.ageoverflow_worker.name}"
   scalable_dimension = "ecs:service:DesiredCount"
   service_namespace  = "ecs"
+
+  depends_on = [aws_ecs_service.ageoverflow_worker]
 }
 
 resource "aws_cloudwatch_metric_alarm" "urgent_queue_high" {
@@ -43,6 +45,7 @@ resource "aws_cloudwatch_metric_alarm" "urgent_queue_high" {
   period              = 60
   statistic           = "Sum"
   threshold           = 0
+  alarm_actions       = [aws_appautoscaling_policy.worker_scale_out.arn]
   dimensions = {
     QueueName = aws_sqs_queue.urgent.name
   }
@@ -57,6 +60,37 @@ resource "aws_cloudwatch_metric_alarm" "standard_queue_high" {
   period              = 60
   statistic           = "Sum"
   threshold           = 0
+  alarm_actions       = [aws_appautoscaling_policy.worker_scale_out.arn]
+  dimensions = {
+    QueueName = aws_sqs_queue.standard.name
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "urgent_queue_low" {
+  alarm_name          = "ageoverflow-urgent-queue-low"
+  comparison_operator = "LessThanOrEqualToThreshold"
+  evaluation_periods  = 3
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 0
+  alarm_actions       = [aws_appautoscaling_policy.worker_scale_in.arn]
+  dimensions = {
+    QueueName = aws_sqs_queue.urgent.name
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "standard_queue_low" {
+  alarm_name          = "ageoverflow-standard-queue-low"
+  comparison_operator = "LessThanOrEqualToThreshold"
+  evaluation_periods  = 3
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 0
+  alarm_actions       = [aws_appautoscaling_policy.worker_scale_in.arn]
   dimensions = {
     QueueName = aws_sqs_queue.standard.name
   }
@@ -74,14 +108,12 @@ resource "aws_appautoscaling_policy" "worker_scale_out" {
     cooldown                = 60
     metric_aggregation_type = "Maximum"
 
-    # 1-10 messages so add 1 worker
     step_adjustment {
       metric_interval_lower_bound = 0
       metric_interval_upper_bound = 10
       scaling_adjustment          = 1
     }
 
-    # 10+ messages so add 3 workers
     step_adjustment {
       metric_interval_lower_bound = 10
       scaling_adjustment          = 3
@@ -101,7 +133,6 @@ resource "aws_appautoscaling_policy" "worker_scale_in" {
     cooldown                = 120
     metric_aggregation_type = "Maximum"
 
-    # Queue empty so remove 1 worker
     step_adjustment {
       metric_interval_upper_bound = 0
       scaling_adjustment          = -1
