@@ -27,7 +27,7 @@ resource "aws_appautoscaling_policy" "api_cpu" {
 }
 
 resource "aws_appautoscaling_target" "worker" {
-  max_capacity       = 10
+  max_capacity       = 20
   min_capacity       = 1
   resource_id        = "service/${aws_ecs_cluster.ageoverflow.name}/${aws_ecs_service.ageoverflow_worker.name}"
   scalable_dimension = "ecs:service:DesiredCount"
@@ -105,18 +105,18 @@ resource "aws_appautoscaling_policy" "worker_scale_out" {
 
   step_scaling_policy_configuration {
     adjustment_type         = "ChangeInCapacity"
-    cooldown                = 60
+    cooldown                = 30
     metric_aggregation_type = "Maximum"
 
     step_adjustment {
       metric_interval_lower_bound = 0
-      metric_interval_upper_bound = 10
-      scaling_adjustment          = 1
+      metric_interval_upper_bound = 50
+      scaling_adjustment          = 3
     }
 
     step_adjustment {
-      metric_interval_lower_bound = 10
-      scaling_adjustment          = 3
+      metric_interval_lower_bound = 50
+      scaling_adjustment          = 5
     }
   }
 }

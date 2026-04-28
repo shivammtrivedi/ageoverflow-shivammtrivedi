@@ -923,3 +923,107 @@ gcas-api/src/main/java/com/ageoverflow/gcas/config/AsyncConfig.java
 36         return executor;
 37     }
 38 }
+
+
+█ THRESHOLDS
+
+    ageoverflow_api_errors
+    ✓ 'rate<0.05' rate=3.32%
+
+    http_req_duration
+    ✗ 'p(95)<2000' p(95)=31.48s
+
+      {type:get_batch}
+      ✗ 'p(95)<2500' p(95)=1m0s
+
+      {type:get_single}
+      ✗ 'p(95)<1000' p(95)=9.29s
+
+      {type:post}
+      ✗ 'p(95)<1500' p(95)=10.69s
+
+    http_req_failed
+    ✓ 'rate<0.05' rate=3.32%
+
+
+█ TOTAL RESULTS
+
+    checks_total.......: 113828 180.6401/s
+    checks_succeeded...: 97.88% 111417 out of 113828
+    checks_failed......: 2.11%  2411 out of 113828
+
+    ✗ POST returned 201
+      ↳  99% — ✓ 21201 / ✗ 52
+    ✓ POST has id
+    ✓ POST initially pending
+    ✗ GET request list 200
+      ↳  77% — ✓ 3440 / ✗ 990
+    ✗ GET single 200
+      ↳  99% — ✓ 42308 / ✗ 75
+    ✗ GET users 200
+      ↳  60% — ✓ 1962 / ✗ 1294
+
+    CUSTOM
+    ageoverflow_api_errors...............: 3.32%  2412 out of 72505
+    ageoverflow_batch_latency............: min=220.794  avg=24775.840147 med=14314.345 p(90)=60001.7972 p(95)=60003.132  p(99)=60007.3204  max=60538.826
+    ageoverflow_created_requests.........: 21201  33.645068/s
+    ageoverflow_get_latency..............: min=217.644  avg=2313.533901  med=880.829   p(90)=5553.1658  p(95)=9292.5094  p(99)=20466.01792 max=60046.195
+    ageoverflow_local_known_ids..........: 1      min=1              max=1   
+    ageoverflow_observed_pending_ratio...: 99.95% 42290 out of 42308
+    ageoverflow_pending_polls............: 42290  67.112396/s
+    ageoverflow_post_latency.............: min=227.716  avg=2688.438429  med=1072.742  p(90)=6604.5984  p(95)=10690.1992 p(99)=22349.5188  max=60018.879
+    ageoverflow_successful_polls.........: 18     0.028565/s
+    ageoverflow_urgent_requests..........: 6378   10.121609/s
+
+    HTTP
+    http_req_duration....................: min=217.64ms avg=5.17s        med=1.07s     p(90)=11.02s     p(95)=31.48s     p(99)=1m0s        max=1m0s     
+      { expected_response:true }.........: min=217.64ms avg=3.29s        med=1s        p(90)=8.02s      p(95)=14.58s     p(99)=40.85s      max=59.96s   
+      { type:get_batch }.................: min=220.83ms avg=24.78s       med=16.97s    p(90)=1m0s       p(95)=1m0s       p(99)=1m0s        max=1m0s     
+      { type:get_single }................: min=217.64ms avg=2.31s        med=880.82ms  p(90)=5.55s      p(95)=9.29s      p(99)=20.46s      max=1m0s     
+      { type:post }......................: min=227.71ms avg=2.68s        med=1.07s     p(90)=6.6s       p(95)=10.69s     p(99)=22.34s      max=1m0s     
+    http_req_failed......................: 3.32%  2412 out of 72505
+    http_reqs............................: 72505  115.062291/s
+
+    EXECUTION
+    dropped_iterations...................: 19750  31.342394/s
+    iteration_duration...................: min=275.78ms avg=13.3s        med=6.06s     p(90)=45.3s      p(95)=1m0s       p(99)=1m0s        max=1m57s    
+    iterations...........................: 30105  47.775329/s
+    vus..................................: 245    min=9              max=1000
+    vus_max..............................: 1000   min=250            max=1000
+
+    NETWORK
+    data_received........................: 762 MB 1.2 MB/s
+    data_sent............................: 19 MB  29 kB/s
+
+
+
+
+running (10m30.1s), 0000/1000 VUs, 30104 complete and 245 interrupted iterations
+peak ✓ [======================================] 0245/1000 VUs  10m0s  080.00 iters/s
+ERRO[0631] thresholds on metrics 'http_req_duration, http_req_duration{type:get_batch}, http_req_duration{type:get_single}, http_req_duration{type:post}' have been crossed 
+
+Based on the results, here's what I'd tackle in order of impact:
+
+Step 1 — Increase worker capacity and scale-out aggressiveness (autoscaling.tf)
+- Raise max_capacity from 10 → 20
+- Increase scale-out steps (add 3 at small queue depth, 5 at large)
+- Lower cooldown from 60s → 30s on scale-out
+
+Step 2 — Give workers more CPU (main.tf)
+- The engine is CPU-bound. Bump worker task from cpu=512 to cpu=1024, memory=2048. More CPU = faster job completion = queue drains faster.
+
+Step 3 — Increase API min count (autoscaling.tf)
+- Change API min_capacity from 1 → 2 so you're not starting from a single container under burst load
+
+Step 4 — Increase DB connection pool (application.properties)
+- Add spring.datasource.hikari.maximum-pool-size=20 (default is 10). At peak with 120 req/s and multiple API + worker tasks, threads queue waiting for connections.
+
+Step 5 — Re-run peak and check CloudWatch
+- After applying, watch the ECS worker service desired count in CloudWatch or the console during the test — confirm it actually scales up to 15-20
+- Also check the SQS queue depth metric to see if workers are draining it
+
+Step 6 — Run the other scenarios to baseline
+- normal, bau, research should pass comfortably once peak is fixed
+- curiosity and early/mid/tail are the next hardest
+
+The single biggest win will be step 1+2 together — more workers with more CPU so the queue drains faster than it fills.     
