@@ -74,7 +74,7 @@ resource "aws_appautoscaling_policy" "worker_scale_out" {
     cooldown                = 60
     metric_aggregation_type = "Maximum"
 
-    # 1–10 messages so add 1 worker
+    # 1-10 messages so add 1 worker
     step_adjustment {
       metric_interval_lower_bound = 0
       metric_interval_upper_bound = 10
