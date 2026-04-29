@@ -28,7 +28,7 @@ resource "aws_appautoscaling_policy" "api_cpu" {
 
 resource "aws_appautoscaling_target" "worker" {
   max_capacity       = 20
-  min_capacity       = 1
+  min_capacity       = 5
   resource_id        = "service/${aws_ecs_cluster.ageoverflow.name}/${aws_ecs_service.ageoverflow_worker.name}"
   scalable_dimension = "ecs:service:DesiredCount"
   service_namespace  = "ecs"

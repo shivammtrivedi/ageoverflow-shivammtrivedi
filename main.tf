@@ -225,7 +225,7 @@ resource "aws_ecs_service" "ageoverflow_worker" {
   name            = "ageoverflow-worker"
   cluster         = aws_ecs_cluster.ageoverflow.id
   task_definition = aws_ecs_task_definition.ageoverflow_worker.arn
-  desired_count   = 1
+  desired_count   = 5
   launch_type     = "FARGATE"
 
   network_configuration {
